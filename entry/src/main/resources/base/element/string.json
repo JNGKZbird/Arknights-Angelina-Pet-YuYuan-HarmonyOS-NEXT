@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "酸橙味的信——明日方舟同人桌宠"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "酸橙味的信"
+    },
+    {
+      "name": "camera_reason",
+      "value": "用于陪伴模式下将摄像头画面作为桌面背景，画面仅在本地显示，不上传不存储。"
+    }
+  ]
+}
