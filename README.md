@@ -112,6 +112,10 @@ Windows 版予愿安洁莉娜桌宠的**鸿蒙 HarmonyOS NEXT 原生移植**。�
 
 > 本仓库使用 ArkTS（.ets）编写，GitHub 语言统计暂不识别 ArkTS，语言占比显示不准确，以目录结构为准。未来**可能**推出 iOS 版本。
 
+### 关联仓库
+
+- **[Arknights-Skills](https://github.com/JNGKZbird/Arknights-Skills)** — 我们维护的《明日方舟》干员 Skill 库：20+ 位干员 × 长短两套角色包（持续扩充中，忠于 wiki 原作、内置越狱防范）。可复制导入桌宠的自定义智能体。
+
 ### 技术栈
 
 - **语言**：ArkTS（UI 层）+ C++（渲染内核）
