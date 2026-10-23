@@ -18,8 +18,10 @@ import { FrameCallback, display, mediaquery } from '@kit.ArkUI'
 import { preferences } from '@kit.ArkData'
 import { media } from '@kit.MediaKit'
 import { camera } from '@kit.CameraKit'
-import { abilityAccessCtrl } from '@kit.AbilityKit'
+import { abilityAccessCtrl, common } from '@kit.AbilityKit'
+import { fileIo as fs } from '@kit.CoreFileKit'
 import { pasteboard, deviceInfo } from '@kit.BasicServicesKit'
+import { AssetStore, AssetFd } from '../model/AssetStore'
 import { ChatApi, ChatMsg } from '../model/ChatApi'
 import { ChatStore, ChatSettings, ChatHistory, Session, Project, Agent, RoundNode, SearchResult, CHATTER_PROMPT, IDLE_PROACTIVE_LINE, FLIGHT_PROACTIVE_LINE } from '../model/ChatStore'
 import { VOICE_FILES, VOICE_LINES, BASE_TALK, COMBAT_SELECT, COMBAT_DEPLOY, COMBAT_FIGHT } from '../model/Voice'
@@ -76,9 +78,16 @@ class StateLayout {
   t: RenderTransform = new RenderTransform()
 }
 
-async function loadTexture(context: Context, rawfilePath: string): Promise<Texture> {
-  let data = await context.resourceManager.getRawFileContent(rawfilePath)
-  let imageSource = image.createImageSource(data.buffer)
+async function loadTexture(path: string): Promise<Texture> {
+  let stat = fs.statSync(path)
+  let fileBuffer = new ArrayBuffer(stat.size)
+  let file = fs.openSync(path, fs.OpenMode.READ_ONLY)
+  try {
+    fs.readSync(file.fd, fileBuffer)
+  } finally {
+    fs.closeSync(file)
+  }
+  let imageSource = image.createImageSource(fileBuffer)
   let pixelMap = await imageSource.createPixelMap()
   let buffer = new ArrayBuffer(pixelMap.getPixelBytesNumber())
   await pixelMap.readPixelsToBuffer(buffer)
@@ -351,6 +360,7 @@ struct ChatSidebar {
   @Prop projects: Project[] = []
   @Prop activeSid: string = ''
   @Prop theme: ThemeTokens = THEME_SKY
+  @Prop avatarUri: string = ''
   @Prop collapsed: boolean = false
   @Prop isLandscape: boolean = true // 竖屏展开宽度收窄 20%（220→176）
   @Prop expandedPids: string = '' // 展开的项目（逗号分隔，持久化）
@@ -435,7 +445,7 @@ struct ChatSidebar {
       // 顶行：真 logo（avatar.png，两态保留，36×36）+ "酸橙味的信"（仅展开）+
       // 折叠箭头（仅横屏可见；竖屏窄侧边栏会被挤出——整行点击即可展开/收起）
       Row({ space: 8 }) {
-        Image($rawfile('avatar.png'))
+        Image(this.avatarUri)
           .width(36)
           .height(36)
           .borderRadius(10)
@@ -3061,18 +3071,16 @@ class PetModel {
   }
 }
 
-async function loadModel(context: Context, dir: string, skelName: string, baseAnim: string,
+async function loadModel(store: AssetStore, dir: string, skelName: string, baseAnim: string,
   menuItems: MenuItem[], interactAnim: string | null, comboAnims: string[] = [],
   centeredAnims: string[] = [], vSlack: number = 0, extraAnims: string[] = [],
   clickExtraAnims: string[] = []): Promise<PetModel> {
   let atlasName = skelName.replace('.skel', '.atlas')
-  let atlasData = await context.resourceManager.getRawFileContent('spine/' + dir + '/' + atlasName)
-  let decoder = util.TextDecoder.create('utf-8')
-  let atlas = new TextureAtlas(decoder.decodeToString(atlasData))
+  let atlas = new TextureAtlas(store.readText('spine/' + dir + '/' + atlasName))
   for (let p = 0; p < atlas.pages.length; p++) {
-    atlas.pages[p].texture = await loadTexture(context, 'spine/' + dir + '/' + atlas.pages[p].name)
+    atlas.pages[p].texture = await loadTexture(store.file('spine/' + dir + '/' + atlas.pages[p].name))
   }
-  let skelData = await context.resourceManager.getRawFileContent('spine/' + dir + '/' + skelName)
+  let skelData = store.readBytes('spine/' + dir + '/' + skelName)
   let sd = new SkeletonBinary(new AtlasAttachmentLoaderImpl(atlas)).read_skeleton_data(skelData)
   return new PetModel(new Skeleton(sd), atlas.pages[0].texture as Texture, baseAnim, menuItems,
     interactAnim, comboAnims, centeredAnims, vSlack, extraAnims, clickExtraAnims)
@@ -3124,6 +3132,8 @@ struct PetPage {
   private convParamCtl: CustomDialogController | null = null
   private agentEditCtl: CustomDialogController | null = null
   private models: Map<string, PetModel> = new Map()
+  private assetStore: AssetStore | null = null
+  @State avatarUri: string = ''
   private sizeScale: number = 0.9 // 尺寸基准（用户 2026-08-15 拍板：平板全屏模式）
   @State modelsReady: boolean = false
   @State settingsVisible: boolean = false
@@ -3155,8 +3165,11 @@ struct PetPage {
 
   async init(): Promise<void> {
     let ctx = getContext(this)
+    let store = new AssetStore(ctx as common.UIAbilityContext)
+    this.assetStore = store
+    this.avatarUri = 'file://' + store.file('avatar.png')
     await ChatStore.loadDefaultPrompt(ctx) // 默认智能体 = 安洁莉娜 Skill 包
-    this.models.set('build', await loadModel(ctx, 'build', 'build_char_1015_aglna2.skel', 'Relax', [
+    this.models.set('build', await loadModel(store, 'build', 'build_char_1015_aglna2.skel', 'Relax', [
       { label: '待机', anim: 'Relax' },
       { label: '坐下', anim: 'Sit' },
       { label: '睡觉', anim: 'Sleep' }
@@ -3181,9 +3194,9 @@ struct PetPage {
       clickSkillAnims.push(COMBAT_SKILLS[i].idle)
       clickSkillAnims.push(COMBAT_SKILLS[i].combat)
     }
-    this.models.set('back', await loadModel(ctx, 'back', 'char_1015_aglna2.skel', 'Idle', [],
+    this.models.set('back', await loadModel(store, 'back', 'char_1015_aglna2.skel', 'Idle', [],
       null, ['Attack'], [], 0, skillAnims, clickSkillAnims))
-    this.models.set('front', await loadModel(ctx, 'front', 'char_1015_aglna2.skel', 'Idle', [],
+    this.models.set('front', await loadModel(store, 'front', 'char_1015_aglna2.skel', 'Idle', [],
       null, ['Attack', 'Attack_Down'], [], 0, skillAnims, clickSkillAnims))
     // 跨模型归一化：共用最大 bottomExtra 与最大画布尺寸
     let maxBE = 0
@@ -4258,6 +4271,7 @@ struct PetPage {
           projects: this.chatHistory.projects,
           activeSid: this.chatHistory.active_session,
           theme: this.theme,
+          avatarUri: this.avatarUri,
           collapsed: this.sidebarCollapsed,
           isLandscape: this.isLandscape,
           expandedPids: this.expandedPids,
@@ -4510,8 +4524,19 @@ struct PetView {
   private voiceCooldown: boolean = false
   private voiceCdTimer: number = -1
   private voicePlayer: media.AVPlayer | null = null // 成员持有防 GC（局部变量会被回收 → 无声）
+  private voiceFd: number = -1
+  private assetStore: AssetStore | null = null
   private idleVoiceTimer: number = -1
   private idleVoicePlayed: boolean = false
+
+  private getAssetStore(): AssetStore {
+    let current = this.assetStore
+    if (current === null) {
+      current = new AssetStore(getContext(this) as common.UIAbilityContext)
+      this.assetStore = current
+    }
+    return current
+  }
 
   private curModel(): PetModel | null {
     let m = this.models.get(this.curKey)
@@ -4786,7 +4811,7 @@ struct PetView {
     return prefs.getSync('voice_enabled', true) as boolean
   }
 
-  // 播放语音 + 台词字幕（Windows _play_voice：AVPlayer fdSrc 播 rawfile wav；
+  // 播放语音 + 台词字幕（Windows _play_voice：AVPlayer fdSrc 播插件目录 wav；
   // 字幕 45 秒后自动收起；受语音开关与语言设置控制）。
   // 单播放器语义：播放前强制停止旧语音（Windows setSource 替换即停——点击重置播放状态）。
   private playVoice(name: string): void {
@@ -4801,44 +4826,56 @@ struct PetView {
     let file = VOICE_FILES.get(name)
     if (file !== undefined) {
       let dir = lang === '日文' ? 'voice_jp/' : 'voice/'
-      getContext(this).resourceManager.getRawFd(dir + file).then((fdInfo) => {
-        media.createAVPlayer().then((player: media.AVPlayer) => {
-          this.voicePlayer = player
-          // AVPlayer 是严格异步状态机：必须在 stateChange 回调里驱动流转
-          // （idle→设 fdSrc；initialized→prepare；prepared→play），直接连调会静默无声
-          let fdSet = false
-          player.on('stateChange', (state: string) => {
-            if (state === 'idle' && !fdSet) {
-              fdSet = true
-              player.fdSrc = { fd: fdInfo.fd, offset: fdInfo.offset, length: fdInfo.length }
-            } else if (state === 'initialized') {
-              player.prepare().catch((e: Error) => {
-                hilog.error(0x0000, 'PetVoice', 'prepare fail %{public}s', JSON.stringify(e))
-                this.releaseVoice()
-              })
-            } else if (state === 'prepared') {
-              player.play().catch((e: Error) => {
-                hilog.error(0x0000, 'PetVoice', 'play fail %{public}s', JSON.stringify(e))
-                this.releaseVoice()
-              })
-            } else if (state === 'completed' || state === 'error') {
-              this.releaseVoice()
-            }
-          })
-          player.on('error', (e) => {
-            hilog.error(0x0000, 'PetVoice', 'player error %{public}s', JSON.stringify(e))
-          })
-          // 创建后初始即 idle：该状态可能不触发 change 事件，主动补一次
-          if (player.state === 'idle') {
+      let store: AssetStore
+      try {
+        store = this.getAssetStore()
+      } catch (e) {
+        hilog.error(0x0000, 'PetVoice', 'asset store init fail %{public}s', JSON.stringify(e))
+        return
+      }
+      let fdInfo: AssetFd
+      try {
+        fdInfo = store.openFd(dir + file)
+      } catch (e) {
+        hilog.error(0x0000, 'PetVoice', 'open voice file fail %{public}s', JSON.stringify(e))
+        return
+      }
+      this.voiceFd = fdInfo.fd
+      media.createAVPlayer().then((player: media.AVPlayer) => {
+        this.voicePlayer = player
+        // AVPlayer 是严格异步状态机：必须在 stateChange 回调里驱动流转
+        // （idle→设 fdSrc；initialized→prepare；prepared→play），直接连调会静默无声
+        let fdSet = false
+        player.on('stateChange', (state: string) => {
+          if (state === 'idle' && !fdSet) {
             fdSet = true
             player.fdSrc = { fd: fdInfo.fd, offset: fdInfo.offset, length: fdInfo.length }
+          } else if (state === 'initialized') {
+            player.prepare().catch((e: Error) => {
+              hilog.error(0x0000, 'PetVoice', 'prepare fail %{public}s', JSON.stringify(e))
+              this.releaseVoice()
+            })
+          } else if (state === 'prepared') {
+            player.play().catch((e: Error) => {
+              hilog.error(0x0000, 'PetVoice', 'play fail %{public}s', JSON.stringify(e))
+              this.releaseVoice()
+            })
+          } else if (state === 'completed' || state === 'error') {
+            this.releaseVoice()
           }
-        }).catch((e: Error) => {
-          hilog.error(0x0000, 'PetVoice', 'create fail %{public}s', JSON.stringify(e))
+        })
+        player.on('error', (e) => {
+          hilog.error(0x0000, 'PetVoice', 'player error %{public}s', JSON.stringify(e))
           this.releaseVoice()
         })
+        // 创建后初始即 idle：该状态可能不触发 change 事件，主动补一次
+        if (player.state === 'idle') {
+          fdSet = true
+          player.fdSrc = { fd: fdInfo.fd, offset: fdInfo.offset, length: fdInfo.length }
+        }
       }).catch((e: Error) => {
-        hilog.error(0x0000, 'PetVoice', 'getRawFd fail %{public}s', JSON.stringify(e))
+        hilog.error(0x0000, 'PetVoice', 'create fail %{public}s', JSON.stringify(e))
+        this.releaseVoice()
       })
     }
     let text = VOICE_LINES.get(name)
@@ -4854,6 +4891,12 @@ struct PetView {
       } catch (e) {
       }
       this.voicePlayer = null
+    }
+    if (this.voiceFd >= 0) {
+      if (this.assetStore !== null) {
+        this.assetStore.closeFd(this.voiceFd)
+      }
+      this.voiceFd = -1
     }
   }
 

@@ -2,6 +2,7 @@ import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { settings } from '@kit.BasicServicesKit';
+import { AssetStore } from '../model/AssetStore';
 
 const DOMAIN = 0x0000;
 const TAG = 'AngelinaPet';
@@ -13,6 +14,17 @@ export default class EntryAbility extends UIAbility {
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, TAG, 'Ability onCreate');
+    let override = want.parameters?.asset_url as string;
+    if (override !== undefined && override.length > 0) {
+      AppStorage.setOrCreate('assetUrlOverride', override);
+    }
+  }
+
+  onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    let override = want.parameters?.asset_url as string;
+    if (override !== undefined && override.length > 0) {
+      AppStorage.setOrCreate('assetUrlOverride', override);
+    }
   }
 
   onDestroy(): void {
@@ -25,12 +37,19 @@ export default class EntryAbility extends UIAbility {
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
     hilog.info(DOMAIN, TAG, 'Ability onWindowStageCreate');
-    windowStage.loadContent('pages/PetPage', (err) => {
+    let installed = false;
+    try {
+      installed = new AssetStore(this.context).isInstalledSync();
+    } catch (e) {
+      hilog.error(DOMAIN, TAG, 'Asset check failed: %{public}s', JSON.stringify(e));
+    }
+    let page = installed ? 'pages/PetPage' : 'pages/AssetSetupPage';
+    windowStage.loadContent(page, (err) => {
       if (err.code) {
-        hilog.error(DOMAIN, TAG, 'Failed to load PetPage: %{public}s', JSON.stringify(err));
+        hilog.error(DOMAIN, TAG, 'Failed to load %{public}s: %{public}s', page, JSON.stringify(err));
         return;
       }
-      hilog.info(DOMAIN, TAG, 'PetPage loaded');
+      hilog.info(DOMAIN, TAG, '%{public}s loaded', page);
       this.applyTransparency(windowStage);
       const mainWindow = windowStage.getMainWindowSync();
       // 全屏沉浸：布局延伸至状态栏/导航栏下，并隐藏两栏（平板上下白边/手机底部黑边的根因）

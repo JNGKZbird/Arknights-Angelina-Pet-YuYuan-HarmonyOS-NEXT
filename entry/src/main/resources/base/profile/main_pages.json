@@ -2,6 +2,7 @@
   "src": [
     "pages/TestPage",
     "pages/Index",
-    "pages/PetPage"
+    "pages/PetPage",
+    "pages/AssetSetupPage"
   ]
 }
