@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: LicenseRef-Spine-Runtimes-3.8
+// Derived from Esoteric Software's spine-ts 3.8 (Spine Runtimes).
+// Part of the Spine Runtimes integration in this project; NOT MIT.
+// License texts: LICENSES/Spine-Runtimes-License-3.8.txt
+//               LICENSES/Spine-Runtimes-License-2025.txt
 /**
  * Spine 3.8 动画时间线应用 — 精确移植自 spine38/animation.py（spine-ts 3.8）。
  * 与 Python 差异：时间线为类型化类（见 loader.ets）；槽位颜色/变形/路径曲线在 loader 读弃 → 恒线性。

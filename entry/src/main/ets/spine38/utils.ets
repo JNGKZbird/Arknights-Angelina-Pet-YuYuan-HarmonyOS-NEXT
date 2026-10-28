@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: LicenseRef-Spine-Runtimes-3.8
+// Derived from Esoteric Software's spine-ts 3.8 (Spine Runtimes).
+// Part of the Spine Runtimes integration in this project; NOT MIT.
+// License texts: LICENSES/Spine-Runtimes-License-3.8.txt
+//               LICENSES/Spine-Runtimes-License-2025.txt
 /**
  * Spine 3.8 runtime for ArkTS — ported from spine38/utils.py（spine-ts 3.8）。
  * 移植期保持与 Python 同名（snake_case），便于与参考实现 diff 比对；数值对齐后可再统一改名。
