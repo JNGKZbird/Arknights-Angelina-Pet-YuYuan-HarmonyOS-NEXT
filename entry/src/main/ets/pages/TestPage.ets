@@ -1,6 +1,7 @@
 /**
- * spine38 loader 验证页（临时）：加载三套 skel 输出摘要，与 Python test_spine_load.py 基准比对。
- * 验证通过后可删除本页并恢复 main_pages.json。
+ * spine38 loader 验证页（本地调试用，未注册在 main_pages.json）。
+ * 加载三套 skel 输出摘要，与 Python test_spine_load.py 基准比对。
+ * 需要真机自检时，临时把 "pages/TestPage" 加回 main_pages.json，调试完撤回。
  */
 import {
   SkeletonBinary, SkeletonData, Skin, AttachmentLoader, Attachment,

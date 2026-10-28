@@ -185,7 +185,6 @@ export DEVECO_SDK_HOME="D:\devecostudio-windows-6.1.1.300\DevEco Studio\sdk"
 AppScope/            # 应用配置
 entry/               # 主模块（ets 页面 + cpp 渲染内核）
 hvigor/              # 构建工具配置
-HANDOFF.md           # 交接文档
 ```
 
 ---

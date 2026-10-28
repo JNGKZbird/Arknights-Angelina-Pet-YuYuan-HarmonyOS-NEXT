@@ -1,6 +1,5 @@
 {
   "src": [
-    "pages/TestPage",
     "pages/Index",
     "pages/PetPage",
     "pages/AssetSetupPage"
